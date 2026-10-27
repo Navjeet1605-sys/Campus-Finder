@@ -169,7 +169,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           {/* Key Facts Strip */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
             gap: '0.75rem',
             background: '#f8fafc',
             borderRadius: 'var(--radius-md)',

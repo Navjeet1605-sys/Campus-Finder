@@ -7,8 +7,9 @@ import { ReportItemModal } from './components/ReportItemModal';
 import { ItemDetailModal } from './components/ItemDetailModal';
 import { ChatMessenger } from './components/ChatMessenger';
 import { MyActivity } from './components/MyActivity';
+import { AdminPanel } from './components/AdminPanel';
 import { Footer } from './components/Footer';
-import type { User, Item, ChatThread, AppNotification, ItemType } from './types';
+import type { User, Item, ChatThread, AppNotification, ItemType, HandoverRecord } from './types';
 import { CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -52,8 +53,18 @@ export const App: React.FC = () => {
     }
   });
 
-  // Active view tab: 'feed' | 'chats' | 'my-items'
-  const [activeTab, setActiveTab] = useState<'feed' | 'chats' | 'my-items'>('feed');
+  // Registered students roster for proctor inspection
+  const [studentsList, setStudentsList] = useState<User[]>(() => {
+    try {
+      const saved = localStorage.getItem('mgmcet_registered_students');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Active view tab: 'feed' | 'chats' | 'my-items' | 'admin'
+  const [activeTab, setActiveTab] = useState<'feed' | 'chats' | 'my-items' | 'admin'>('feed');
   const [activeChatThreadId, setActiveChatThreadId] = useState<string | null>(null);
 
   // Search query
@@ -136,6 +147,41 @@ export const App: React.FC = () => {
     setItems(prev => prev.filter(i => i.id !== itemId));
     showToast('Item listing removed.');
   };
+
+  // Admin Verification & Handover Certification Handlers
+  const handleVerifyItem = (itemId: string, status: 'verified' | 'pending' | 'flagged') => {
+    setItems(prev => prev.map(item => item.id === itemId ? { ...item, adminVerification: status } : item));
+    showToast(status === 'verified' ? 'Item verified by Proctor.' : status === 'flagged' ? 'Item flagged for review.' : 'Verification set to pending.');
+  };
+
+  const handleConfirmHandover = (itemId: string, record: HandoverRecord) => {
+    setItems(prev => prev.map(item => item.id === itemId ? {
+      ...item,
+      status: 'claimed',
+      adminVerification: 'verified',
+      handoverDetails: record
+    } : item));
+    showToast(`Handover officially certified and recorded for student ${record.handedToName}.`);
+  };
+
+  const handleDeleteStudent = (studentId: string) => {
+    const updated = studentsList.filter(s => s.id !== studentId);
+    setStudentsList(updated);
+    localStorage.setItem('mgmcet_registered_students', JSON.stringify(updated));
+    showToast('Student account record removed.');
+  };
+
+  // Re-sync students list when switching to admin tab
+  useEffect(() => {
+    if (activeTab === 'admin') {
+      try {
+        const saved = localStorage.getItem('mgmcet_registered_students');
+        if (saved) setStudentsList(JSON.parse(saved));
+      } catch {
+        // ignore
+      }
+    }
+  }, [activeTab]);
 
   // Direct Chat Handler
   const handleStartChatWithItem = (item: Item) => {
@@ -358,6 +404,20 @@ export const App: React.FC = () => {
               setActiveChatThreadId(threadId);
               setActiveTab('chats');
             }}
+          />
+        )}
+
+        {activeTab === 'admin' && (
+          <AdminPanel
+            items={items}
+            registeredStudents={studentsList}
+            onVerifyItem={handleVerifyItem}
+            onDeleteItem={handleDeleteItem}
+            onConfirmHandover={handleConfirmHandover}
+            onDeleteStudentAccount={handleDeleteStudent}
+            onViewItem={(item: Item) => setSelectedItemForDetail(item)}
+            onBackToFeed={() => setActiveTab('feed')}
+            currentUser={currentUser}
           />
         )}
       </main>

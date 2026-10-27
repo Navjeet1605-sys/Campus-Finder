@@ -31,6 +31,15 @@ export interface User {
   phoneNumber?: string;
   avatar?: string;
   joinedDate?: string;
+  role?: 'student' | 'admin';
+}
+
+export interface HandoverRecord {
+  handedToName: string;
+  handedToRoll: string;
+  handedDate: string;
+  cabinLocation: string;
+  adminNotes?: string;
 }
 
 export interface Item {
@@ -46,6 +55,8 @@ export interface Item {
   status: ItemStatus;
   reportedBy: User;
   secretVerificationHint?: string; // e.g. "Ask owner to verify sticker on back"
+  adminVerification?: 'verified' | 'pending' | 'flagged';
+  handoverDetails?: HandoverRecord;
   createdAt: string;
 }
 

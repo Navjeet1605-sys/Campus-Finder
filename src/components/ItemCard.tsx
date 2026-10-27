@@ -114,6 +114,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <Tag size={11} />
             {item.category.split('&')[0]}
           </span>
+
+          {item.adminVerification === 'verified' && (
+            <span className="badge" style={{
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #10b981',
+              fontWeight: 700
+            }}>
+              <CheckCircle size={11} color="#059669" />
+              Proctor Verified
+            </span>
+          )}
         </div>
 
         {/* Date on bottom right of image */}

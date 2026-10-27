@@ -90,7 +90,7 @@ export const MyActivity: React.FC<MyActivityProps> = ({
           gap: '1.5rem'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
           <img
             src={currentUser.avatar}
             alt={currentUser.fullName}

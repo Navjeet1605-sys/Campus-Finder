@@ -373,7 +373,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
           </div>
 
           {/* Category & Location Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.85rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                 Item Category
@@ -449,7 +449,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
           </div>
 
           {/* Date & Time Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.85rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                 Date {itemType === 'found' ? 'Found' : 'Lost'}

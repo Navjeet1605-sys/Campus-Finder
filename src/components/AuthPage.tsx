@@ -8,7 +8,8 @@ import {
   Phone, 
   ArrowRight, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  ShieldCheck 
 } from 'lucide-react';
 import type { User, Department } from '../types';
 
@@ -76,6 +77,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
 
     if (!passwordClean) {
       setLoginError('Please enter your password.');
+      return;
+    }
+
+    // Special check for College Proctor / Admin Login
+    if (emailClean === 'admin@coet.in') {
+      if (passwordClean !== 'admin' && passwordClean !== 'admin123') {
+        setLoginError('Incorrect Admin password. (Default passkey is: admin)');
+        return;
+      }
+      const adminUser: User = {
+        id: 'admin_mgmcet',
+        fullName: 'Campus Security Proctor',
+        collegeEmail: 'admin@coet.in',
+        department: 'Applied Sciences & Humanities',
+        year: '4th Year',
+        section: 'A',
+        rollNumber: 'ADMIN-PROCTOR',
+        role: 'admin',
+        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=ProctorMGMCET&backgroundColor=10b981',
+        joinedDate: 'Jan 2024'
+      };
+      onLoginSuccess(adminUser);
       return;
     }
 
@@ -443,6 +466,41 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 </button>
               </span>
             </div>
+
+            {/* College Proctor / Admin Portal Quick Access */}
+            <div style={{
+              marginTop: '1.1rem',
+              padding: '0.75rem 0.85rem',
+              borderRadius: 'var(--radius-md)',
+              background: '#f8fafc',
+              border: '1px dashed #a7f3d0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.6rem'
+            }}>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#065f46', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <ShieldCheck size={14} color="var(--primary)" />
+                  Campus Proctor & Admin Access
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                  Manage item reports, logins & handovers
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginEmail('admin@coet.in');
+                  setLoginPassword('admin');
+                }}
+                className="btn btn-ghost"
+                style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem', whiteSpace: 'nowrap' }}
+              >
+                Admin Credentials
+              </button>
+            </div>
           </form>
         ) : (
           /* REGISTRATION VIEW */
@@ -545,7 +603,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Class / Year & Section */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.3rem' }}>
                   Class / Year
@@ -711,7 +769,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Password & Confirm */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.3rem' }}>
                   Create Password

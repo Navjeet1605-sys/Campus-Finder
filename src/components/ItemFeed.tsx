@@ -111,7 +111,10 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
             padding: '0.3rem',
             borderRadius: 'var(--radius-md)',
             border: '1px solid #e2e8f0',
-            gap: '0.3rem'
+            gap: '0.3rem',
+            overflowX: 'auto',
+            maxWidth: '100%',
+            WebkitOverflowScrolling: 'touch'
           }}>
             <button
               onClick={() => setSelectedType('all')}
@@ -282,8 +285,8 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
       {filteredItems.length > 0 ? (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
-          gap: '1.5rem'
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+          gap: '1.25rem'
         }}>
           {filteredItems.map((item) => (
             <ItemCard
