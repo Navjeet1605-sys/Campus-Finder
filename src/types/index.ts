@@ -1,11 +1,14 @@
 export type Department = 
   | 'Computer Science & Engineering (CSE)'
+  | 'CSE AIML'
+  | 'CSE Data Science'
   | 'Information Technology (IT)'
   | 'Electronics & Communication (ECE)'
   | 'Mechanical Engineering (ME)'
   | 'Civil Engineering (CE)'
   | 'Artificial Intelligence & ML (AIML)'
   | 'Applied Sciences & Humanities';
+
 
 export type ItemCategory = 
   | 'Electronics & Gadgets'

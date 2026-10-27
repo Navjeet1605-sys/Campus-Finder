@@ -17,7 +17,10 @@ import {
   Award,
   FileText,
   Calendar,
-  X
+  X,
+  Printer,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import type { Item, User, HandoverRecord } from '../types';
 
@@ -55,6 +58,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [handoverRecipientRoll, setHandoverRecipientRoll] = useState('');
   const [handoverLocation, setHandoverLocation] = useState('Gate 1 Security Cabin');
   const [handoverNotes, setHandoverNotes] = useState('');
+
+  // Printable Handover Slip State
+  const [printingItem, setPrintingItem] = useState<Item | null>(null);
 
   // Registered students list
   const registeredStudents: User[] = propStudents || (() => {
@@ -123,7 +129,94 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     };
 
     onConfirmHandover(selectedItemForHandover.id, record);
+
+    // Prepare ready item for instant printing/audit slip
+    const confirmedItem: Item = {
+      ...selectedItemForHandover,
+      status: 'claimed',
+      handoverDetails: record
+    };
+
     setSelectedItemForHandover(null);
+    setPrintingItem(confirmedItem);
+  };
+
+  // Export full campus audit log as CSV for institutional / proctorial review
+  const handleExportAuditCSV = () => {
+    if (items.length === 0) {
+      alert('No campus items found to export.');
+      return;
+    }
+
+    const headers = [
+      'Case ID',
+      'Report Type',
+      'Status',
+      'Item Title',
+      'Category',
+      'Campus Spot',
+      'Incident Date',
+      'Incident Time',
+      'Proctor Verification',
+      'Reported By Student',
+      'Reporter Roll Number',
+      'Reporter Department',
+      'Reporter Email',
+      'Reporter Phone',
+      'Claimed By / Handed To',
+      'Claimant Roll Number',
+      'Handover Location / Cabin',
+      'Handover Date',
+      'Secret Verification Proof',
+      'Proctor Notes',
+      'Created Timestamp'
+    ];
+
+    const escapeCSV = (val: string | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const clean = String(val).replace(/"/g, '""');
+      return `"${clean}"`;
+    };
+
+    const rows = items.map((item) => [
+      escapeCSV(item.id),
+      escapeCSV(item.type.toUpperCase()),
+      escapeCSV(item.status.toUpperCase()),
+      escapeCSV(item.title),
+      escapeCSV(item.category),
+      escapeCSV(item.location),
+      escapeCSV(item.date),
+      escapeCSV(item.time),
+      escapeCSV(item.adminVerification || 'pending'),
+      escapeCSV(item.reportedBy?.fullName || 'Anonymous'),
+      escapeCSV(item.reportedBy?.rollNumber || 'N/A'),
+      escapeCSV(item.reportedBy?.department || 'N/A'),
+      escapeCSV(item.reportedBy?.collegeEmail || 'N/A'),
+      escapeCSV(item.reportedBy?.phoneNumber || 'N/A'),
+      escapeCSV(item.handoverDetails?.handedToName || (item.status === 'claimed' ? 'Verified Owner' : 'Unclaimed')),
+      escapeCSV(item.handoverDetails?.handedToRoll || 'N/A'),
+      escapeCSV(item.handoverDetails?.cabinLocation || 'N/A'),
+      escapeCSV(item.handoverDetails?.handedDate || 'N/A'),
+      escapeCSV(item.secretVerificationHint || 'None specified'),
+      escapeCSV(item.handoverDetails?.adminNotes || 'N/A'),
+      escapeCSV(item.createdAt || new Date().toISOString())
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `MGMCET_Campus_Audit_Log_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Reunited items count
@@ -187,20 +280,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onBackToFeed}
-          className="btn"
-          style={{
-            background: '#ffffff',
-            color: '#065f46',
-            fontWeight: 700,
-            fontSize: '0.86rem',
-            padding: '0.6rem 1.2rem',
-            borderRadius: 'var(--radius-md)'
-          }}
-        >
-          View Student Feed →
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleExportAuditCSV}
+            className="btn"
+            title="Download complete campus lost & found log as a certified spreadsheet"
+            style={{
+              background: 'rgba(255, 255, 255, 0.18)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.4)',
+              backdropFilter: 'blur(8px)',
+              fontWeight: 700,
+              fontSize: '0.84rem',
+              padding: '0.6rem 1.15rem',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              cursor: 'pointer'
+            }}
+          >
+            <FileSpreadsheet size={16} />
+            <span>Export Audit Log (.CSV)</span>
+          </button>
+
+          <button
+            onClick={onBackToFeed}
+            className="btn"
+            style={{
+              background: '#ffffff',
+              color: '#065f46',
+              fontWeight: 700,
+              fontSize: '0.86rem',
+              padding: '0.6rem 1.2rem',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            View Student Feed →
+          </button>
+        </div>
       </div>
 
       {/* Stats Counter Row */}
@@ -619,7 +737,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
 
                         {/* Handover action */}
-                        {!isClaimed && (
+                        {!isClaimed ? (
                           <button
                             onClick={() => handleOpenHandoverDialog(item)}
                             className="btn"
@@ -635,6 +753,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           >
                             <Award size={15} />
                             <span>Confirm Handover Receipt 🎉</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setPrintingItem(item)}
+                            className="btn"
+                            style={{
+                              width: '100%',
+                              fontSize: '0.78rem',
+                              padding: '0.45rem',
+                              justifyContent: 'center',
+                              background: '#ecfdf5',
+                              border: '1px solid #10b981',
+                              color: '#065f46',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}
+                          >
+                            <Printer size={14} />
+                            <span>Print Handover Slip 🖨️</span>
                           </button>
                         )}
 
@@ -819,15 +958,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               padding: '1.25rem',
               borderRadius: 'var(--radius-md)',
               background: '#ffffff',
-              border: '1px solid #e2e8f0'
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem'
             }}
           >
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
-              Official Campus Handover Audit Log
-            </h3>
-            <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
-              Certified record of lost items returned to verified student owners by College Security / Proctors.
-            </p>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
+                Official Campus Handover Audit Log
+              </h3>
+              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                Certified record of lost items returned to verified student owners by College Security / Proctors.
+              </p>
+            </div>
+
+            <button
+              onClick={handleExportAuditCSV}
+              className="btn"
+              style={{
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                padding: '0.55rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+                cursor: 'pointer'
+              }}
+            >
+              <Download size={15} />
+              <span>Export Audit Log (CSV)</span>
+            </button>
           </div>
 
           {items.filter(i => i.handoverDetails || i.status === 'claimed').length === 0 ? (
@@ -881,10 +1048,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <span className="badge badge-claimed" style={{ fontSize: '0.72rem' }}>
                         ✓ Case Resolved
                       </span>
+                      <button
+                        onClick={() => setPrintingItem(item)}
+                        className="btn"
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.45rem 0.85rem',
+                          background: '#065f46',
+                          color: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(6, 95, 70, 0.2)'
+                        }}
+                      >
+                        <Printer size={14} />
+                        <span>Print Official Slip 🖨️</span>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1044,6 +1231,354 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* =========================================================================
+          PRINTABLE OFFICIAL HANDOVER SLIP / VOUCHER MODAL (COLLEGE SEAL & SIGNATURES)
+         ========================================================================= */}
+      {printingItem && (
+        <div 
+          className="handover-slip-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            overflowY: 'auto',
+            padding: '2rem 1rem',
+            zIndex: 99999
+          }}
+        >
+          {/* Action Toolbar (Hidden during printing) */}
+          <div 
+            className="no-print"
+            style={{
+              width: '100%',
+              maxWidth: '780px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1rem',
+              background: '#0f172a',
+              padding: '0.85rem 1.25rem',
+              borderRadius: 'var(--radius-md)',
+              color: '#ffffff',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <ShieldCheck size={22} color="#10b981" />
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.94rem' }}>
+                  Official Handover Pass Ready
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Authorized by MGMCET Proctorial Board • Form LF-04
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  padding: '0.55rem 1.15rem',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <Printer size={16} />
+                <span>Print Slip / Save PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPrintingItem(null)}
+                className="btn"
+                style={{
+                  background: '#334155',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '0.84rem',
+                  padding: '0.55rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Official Printable Handover Slip Paper */}
+          <div 
+            className="printable-handover-slip"
+            style={{
+              width: '100%',
+              maxWidth: '780px',
+              background: '#ffffff',
+              color: '#0f172a',
+              borderRadius: '8px',
+              padding: '2.5rem 2.8rem',
+              boxShadow: '0 20px 45px rgba(0,0,0,0.25)',
+              border: '2px solid #047857',
+              fontFamily: '"Times New Roman", Times, serif',
+              position: 'relative'
+            }}
+          >
+            {/* Top College Header */}
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #065f46', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                <ShieldCheck size={36} color="#065f46" />
+                <h1 style={{
+                  fontSize: '1.35rem',
+                  fontWeight: 900,
+                  color: '#065f46',
+                  letterSpacing: '0.02em',
+                  margin: 0,
+                  textTransform: 'uppercase'
+                }}>
+                  Mahatma Gandhi Mission's College of Engineering & Technology
+                </h1>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#334155', fontWeight: 600 }}>
+                Approved by AICTE, New Delhi & Affiliated to Dr. A.P.J. Abdul Kalam Technical University (AKTU), Lucknow
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#475569' }}>
+                Institutional Area, Sector 62, Noida - 201309 (Uttar Pradesh) • Phone: (0120) 2400112 / 2400113
+              </div>
+
+              <div style={{
+                marginTop: '0.75rem',
+                display: 'inline-block',
+                background: '#065f46',
+                color: '#ffffff',
+                padding: '0.3rem 1.4rem',
+                borderRadius: '4px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                letterSpacing: '0.05em'
+              }}>
+                OFFICE OF CHIEF PROCTOR • PROPERTY CUSTODY DISCHARGE SLIP
+              </div>
+            </div>
+
+            {/* Reference & Audit Serial Bar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              padding: '0.5rem 0.85rem',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              color: '#334155',
+              marginBottom: '1.25rem'
+            }}>
+              <div>
+                <strong>REF VOUCHER:</strong> MGMCET/PROCTOR/LF-{printingItem.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}
+              </div>
+              <div>
+                <strong>DISCHARGE DATE:</strong> {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}
+              </div>
+              <div>
+                <strong>CASE:</strong> <span style={{ color: '#059669' }}>CLOSED & DISCHARGED ✓</span>
+              </div>
+            </div>
+
+            {/* Section 1: Recovered Article Specifications */}
+            <div style={{ marginBottom: '1.2rem' }}>
+              <div style={{
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                color: '#065f46',
+                textTransform: 'uppercase',
+                borderBottom: '1px solid #065f46',
+                paddingBottom: '0.2rem',
+                marginBottom: '0.5rem'
+              }}>
+                1. Recovered Property / Article Particulars
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '0.35rem 0.5rem', width: '25%', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Article Description:</td>
+                    <td style={{ padding: '0.35rem 0.5rem', width: '40%', fontWeight: 800, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>{printingItem.title}</td>
+                    <td style={{ padding: '0.35rem 0.5rem', width: '15%', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Category:</td>
+                    <td style={{ padding: '0.35rem 0.5rem', width: '20%', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>{printingItem.category}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '0.35rem 0.5rem', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Campus Location:</td>
+                    <td style={{ padding: '0.35rem 0.5rem', color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>{printingItem.location}</td>
+                    <td style={{ padding: '0.35rem 0.5rem', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Date & Time:</td>
+                    <td style={{ padding: '0.35rem 0.5rem', color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>{printingItem.date} {printingItem.time}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '0.35rem 0.5rem', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Unique Proof/Hint:</td>
+                    <td colSpan={3} style={{ padding: '0.35rem 0.5rem', color: '#334155', borderBottom: '1px solid #e2e8f0', fontStyle: 'italic' }}>
+                      {printingItem.secretVerificationHint || 'Physical verification conducted by security staff.'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Section 2: Surrender (Finder) & Claim (Owner) Particulars in 2 Columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.2rem' }}>
+              {/* Left Column: Reporting / Surrender Student */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', marginBottom: '0.4rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.2rem' }}>
+                  2. Surrendered By (Finder / Reporter)
+                </div>
+                <div style={{ fontSize: '0.8rem', lineHeight: '1.45', color: '#334155' }}>
+                  <div><strong>Student Name:</strong> {printingItem.reportedBy?.fullName || 'Campus Member'}</div>
+                  <div><strong>College Roll No:</strong> {printingItem.reportedBy?.rollNumber || 'N/A'}</div>
+                  <div><strong>Branch / Dept:</strong> {printingItem.reportedBy?.department || 'N/A'}</div>
+                  <div><strong>College Email:</strong> {printingItem.reportedBy?.collegeEmail || 'N/A'}</div>
+                  <div><strong>Contact Mobile:</strong> {printingItem.reportedBy?.phoneNumber || 'Recorded on Portal'}</div>
+                </div>
+              </div>
+
+              {/* Right Column: Handover (Claimant) */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', marginBottom: '0.4rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.2rem' }}>
+                  3. Handed Over To (Verified Owner)
+                </div>
+                <div style={{ fontSize: '0.8rem', lineHeight: '1.45', color: '#334155' }}>
+                  <div><strong>Claimant Name:</strong> {printingItem.handoverDetails?.handedToName || printingItem.reportedBy?.fullName}</div>
+                  <div><strong>Student Roll No:</strong> {printingItem.handoverDetails?.handedToRoll || 'VERIFIED ROLL'}</div>
+                  <div><strong>Cabin Location:</strong> {printingItem.handoverDetails?.cabinLocation || 'Gate 1 Security Cabin'}</div>
+                  <div><strong>Handover Date:</strong> {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}</div>
+                  <div><strong>Officer Remarks:</strong> {printingItem.handoverDetails?.adminNotes || 'Identity verified via college card.'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Legal Undertaking & Indemnity Clause */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              padding: '0.75rem',
+              borderRadius: '4px',
+              fontSize: '0.76rem',
+              color: '#334155',
+              lineHeight: 1.4,
+              marginBottom: '1.5rem',
+              textAlign: 'justify'
+            }}>
+              <strong>STATUTORY DECLARATION & ACKNOWLEDGEMENT:</strong> I hereby certify that I am the genuine and rightful owner of the property described herein and acknowledge receipt thereof in sound and undamaged physical condition. I affirm that Mahatma Gandhi Mission's College of Engineering & Technology, its Proctorial Board, and Duty Security Officers are relieved from any further claims or liabilities regarding this article.
+            </div>
+
+            {/* Signatures & College Seal Grid (3 Columns) */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 140px 1fr',
+              alignItems: 'flex-end',
+              gap: '1rem',
+              marginTop: '1rem'
+            }}>
+              {/* Column 1: Student Claimant Signature */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '0.4rem', height: '40px' }} />
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                  Signature of Claimant / Student
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  {printingItem.handoverDetails?.handedToName || 'Verified Claimant'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  Roll: {printingItem.handoverDetails?.handedToRoll || 'MGMCET'}
+                </div>
+              </div>
+
+              {/* Column 2: Official College Seal Graphic */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  width: '95px',
+                  height: '95px',
+                  borderRadius: '50%',
+                  border: '3px double #065f46',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '4px',
+                  textAlign: 'center',
+                  background: '#f0fdf4',
+                  boxShadow: 'inset 0 0 8px rgba(6, 95, 70, 0.15)'
+                }}>
+                  <div style={{ fontSize: '0.45rem', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    * MGMCET NOIDA *
+                  </div>
+                  <div style={{ fontSize: '0.62rem', fontWeight: 900, color: '#065f46', margin: '2px 0' }}>
+                    PROCTORIAL BOARD
+                  </div>
+                  <div style={{ fontSize: '0.45rem', fontWeight: 700, color: '#059669', background: '#dcfce7', padding: '1px 4px', borderRadius: '2px' }}>
+                    VERIFIED & RELEASED
+                  </div>
+                  <div style={{ fontSize: '0.48rem', color: '#065f46', marginTop: '2px' }}>
+                    {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}
+                  </div>
+                </div>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#065f46', marginTop: '4px' }}>
+                  OFFICIAL SEAL
+                </span>
+              </div>
+
+              {/* Column 3: Duty Officer / Proctor Signature */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '0.4rem', height: '40px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: 'cursive', fontSize: '0.9rem', color: '#065f46' }}>
+                    Security Proctor
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                  Campus Security Proctor
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  Chief Proctorial Board & Custody Cell
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  Cabin: {printingItem.handoverDetails?.cabinLocation || 'Gate 1 Security Cabin'}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Footer Watermark Note */}
+            <div style={{
+              marginTop: '1.5rem',
+              paddingTop: '0.6rem',
+              borderTop: '1px dashed #cbd5e1',
+              fontSize: '0.68rem',
+              color: '#94a3b8',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span>System-generated through MGMCET Campus Finder • Valid without physical seal if digitally approved</span>
+              <span>Page 1 of 1 • Official Archive Copy</span>
+            </div>
           </div>
         </div>
       )}

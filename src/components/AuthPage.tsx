@@ -8,8 +8,7 @@ import {
   Phone, 
   ArrowRight, 
   CheckCircle2, 
-  AlertCircle,
-  ShieldCheck 
+  AlertCircle
 } from 'lucide-react';
 import type { User, Department } from '../types';
 
@@ -19,6 +18,8 @@ interface AuthPageProps {
 
 const DEPARTMENTS: Department[] = [
   'Computer Science & Engineering (CSE)',
+  'CSE AIML',
+  'CSE Data Science',
   'Information Technology (IT)',
   'Electronics & Communication (ECE)',
   'Mechanical Engineering (ME)',
@@ -90,7 +91,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
         id: 'admin_mgmcet',
         fullName: 'Campus Security Proctor',
         collegeEmail: 'admin@coet.in',
-        department: 'Applied Sciences & Humanities',
+        department: 'CSE AIML',
         year: '4th Year',
         section: 'A',
         rollNumber: 'ADMIN-PROCTOR',
@@ -465,41 +466,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                   Register here
                 </button>
               </span>
-            </div>
-
-            {/* College Proctor / Admin Portal Quick Access */}
-            <div style={{
-              marginTop: '1.1rem',
-              padding: '0.75rem 0.85rem',
-              borderRadius: 'var(--radius-md)',
-              background: '#f8fafc',
-              border: '1px dashed #a7f3d0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.6rem'
-            }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#065f46', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <ShieldCheck size={14} color="var(--primary)" />
-                  Campus Proctor & Admin Access
-                </div>
-                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-                  Manage item reports, logins & handovers
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginEmail('admin@coet.in');
-                  setLoginPassword('admin');
-                }}
-                className="btn btn-ghost"
-                style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem', whiteSpace: 'nowrap' }}
-              >
-                Admin Credentials
-              </button>
             </div>
           </form>
         ) : (
