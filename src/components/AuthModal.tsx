@@ -3,11 +3,7 @@ import {
   X, 
   Mail, 
   Lock, 
-  User as UserIcon, 
-  GraduationCap, 
-  Hash, 
   Building2, 
-  Phone, 
   ArrowRight,
   CheckCircle2,
   AlertCircle
@@ -53,7 +49,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regSection, setRegSection] = useState('A');
   const [regRollNumber, setRegRollNumber] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
+  const [regPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regError, setRegError] = useState('');

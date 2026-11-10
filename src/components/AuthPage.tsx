@@ -8,9 +8,11 @@ import {
   Phone, 
   ArrowRight, 
   CheckCircle2, 
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import type { User, Department } from '../types';
+import { dbLoginStudent, dbRegisterStudent } from '../services/dbService';
 
 interface AuthPageProps {
   onLoginSuccess: (user: User) => void;
@@ -48,6 +50,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regError, setRegError] = useState('');
   const [regSuccess, setRegSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Security: Brute-Force Rate Limiting
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutTime, setLockoutTime] = useState<number | null>(null);
 
   // Helper to get registered students from localStorage
   const getRegisteredUsers = (): User[] => {
@@ -59,9 +66,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+
+    // Check rate limit lockout
+    if (lockoutTime && Date.now() < lockoutTime) {
+      const waitSeconds = Math.ceil((lockoutTime - Date.now()) / 1000);
+      setLoginError(`Too many failed attempts. Security cooldown active: please wait ${waitSeconds}s.`);
+      return;
+    }
 
     const emailClean = loginEmail.trim().toLowerCase();
     const passwordClean = loginPassword.trim();
@@ -81,49 +95,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    // Special check for College Proctor / Admin Login
-    if (emailClean === 'admin@coet.in') {
-      if (passwordClean !== 'admin' && passwordClean !== 'admin123') {
-        setLoginError('Incorrect Admin password. (Default passkey is: admin)');
-        return;
+    setIsSubmitting(true);
+    try {
+      const res = await dbLoginStudent(emailClean, passwordClean);
+      if (res.success && res.student) {
+        setFailedAttempts(0);
+        setLockoutTime(null);
+        onLoginSuccess(res.student);
+      } else {
+        const nextFailed = failedAttempts + 1;
+        setFailedAttempts(nextFailed);
+        if (nextFailed >= 5) {
+          setLockoutTime(Date.now() + 30000); // 30 second cooldown after 5 failed tries
+          setLoginError('Account temporarily locked for 30s due to repeated failed login attempts.');
+        } else {
+          setLoginError(res.error || 'Invalid credentials. Please verify your email and password.');
+        }
       }
-      const adminUser: User = {
-        id: 'admin_mgmcet',
-        fullName: 'Campus Security Proctor',
-        collegeEmail: 'admin@coet.in',
-        department: 'CSE AIML',
-        year: '4th Year',
-        section: 'A',
-        rollNumber: 'ADMIN-PROCTOR',
-        role: 'admin',
-        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=ProctorMGMCET&backgroundColor=10b981',
-        joinedDate: 'Jan 2024'
-      };
-      onLoginSuccess(adminUser);
-      return;
+    } catch (err: any) {
+      setLoginError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const registeredUsers = getRegisteredUsers();
-    const matchedUser = registeredUsers.find(
-      u => u.collegeEmail.toLowerCase() === emailClean
-    );
-
-    if (!matchedUser) {
-      setLoginError('No student account found with this email. Please click "New Student Register" below to create your account.');
-      return;
-    }
-
-    // Verify stored password
-    const storedPasswords = JSON.parse(localStorage.getItem('mgmcet_student_passwords') || '{}');
-    if (storedPasswords[matchedUser.id] && storedPasswords[matchedUser.id] !== passwordClean) {
-      setLoginError('Incorrect password. Please verify and try again.');
-      return;
-    }
-
-    onLoginSuccess(matchedUser);
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
     setRegSuccess('');
@@ -190,32 +186,39 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    const isProctorRole = email.toLowerCase() === 'admin@coet.in' || email.toLowerCase().startsWith('proctor@');
     const newStudent: User = {
-      id: `usr_${Date.now()}`,
+      id: isProctorRole ? 'admin_mgmcet' : `usr_${Date.now()}`,
       fullName: name,
       collegeEmail: email,
       department: regDepartment,
       year: regYear,
       section: section || 'A',
-      rollNumber: roll,
+      rollNumber: isProctorRole ? 'ADMIN-PROCTOR' : roll,
+      role: isProctorRole ? 'admin' : 'student',
       phoneNumber: regPhone.trim() || undefined,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=a7f3d0,10b981,059669&textColor=065f46`,
+      avatar: isProctorRole 
+        ? 'https://api.dicebear.com/7.x/bottts/svg?seed=ProctorMGMCET&backgroundColor=10b981'
+        : `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=a7f3d0,10b981,059669&textColor=065f46`,
       joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     };
 
-    // Save to registered list
-    const updatedUsers = [...existingUsers, newStudent];
-    localStorage.setItem('mgmcet_registered_students', JSON.stringify(updatedUsers));
-
-    // Save password
-    const storedPasswords = JSON.parse(localStorage.getItem('mgmcet_student_passwords') || '{}');
-    storedPasswords[newStudent.id] = regPassword;
-    localStorage.setItem('mgmcet_student_passwords', JSON.stringify(storedPasswords));
-
-    setRegSuccess('Registration successful! Logging you in...');
-    setTimeout(() => {
-      onLoginSuccess(newStudent);
-    }, 700);
+    setIsSubmitting(true);
+    try {
+      const res = await dbRegisterStudent(newStudent, regPassword);
+      if (res.success) {
+        setRegSuccess('Registration successful! Logging you in...');
+        setTimeout(() => {
+          onLoginSuccess(newStudent);
+        }, 600);
+      } else {
+        setRegError(res.error || 'Failed to complete registration.');
+      }
+    } catch (err: any) {
+      setRegError(err.message || 'An error occurred during registration.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -373,6 +376,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 <input
                   type="email"
                   placeholder="e.g. student@coet.in"
+                  maxLength={80}
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   style={{
@@ -412,6 +416,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 <input
                   type="password"
                   placeholder="Enter your password"
+                  maxLength={64}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   style={{
@@ -438,16 +443,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="btn btn-primary"
               style={{
                 padding: '0.9rem',
                 fontSize: '0.98rem',
                 fontWeight: 700,
-                marginTop: '0.5rem'
+                marginTop: '0.5rem',
+                opacity: isSubmitting ? 0.75 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer'
               }}
             >
-              <span>Login to Campus Finder</span>
-              <ArrowRight size={18} />
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>Verifying Credentials...</span>
+                </>
+              ) : (
+                <>
+                  <span>Login to Campus Finder</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
             </button>
 
             <div style={{
@@ -515,6 +532,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 <input
                   type="text"
                   placeholder="Enter your official name"
+                  maxLength={70}
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   style={{
@@ -629,6 +647,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 <input
                   type="text"
                   placeholder="e.g. 2300970100054"
+                  maxLength={30}
                   value={regRollNumber}
                   onChange={(e) => setRegRollNumber(e.target.value)}
                   style={{
@@ -660,6 +679,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                 <input
                   type="email"
                   placeholder="e.g. rollnumber@coet.in"
+                  maxLength={80}
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   style={{
@@ -745,6 +765,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                   <input
                     type="password"
                     placeholder="Min 6 chars"
+                    maxLength={64}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     style={{
@@ -770,6 +791,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
                   <input
                     type="password"
                     placeholder="Repeat"
+                    maxLength={64}
                     value={regConfirmPassword}
                     onChange={(e) => setRegConfirmPassword(e.target.value)}
                     style={{
@@ -789,16 +811,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="btn btn-primary"
               style={{
                 padding: '0.85rem',
                 fontSize: '0.95rem',
                 fontWeight: 700,
-                marginTop: '0.4rem'
+                marginTop: '0.4rem',
+                opacity: isSubmitting ? 0.75 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer'
               }}
             >
-              <span>Complete Student Registration</span>
-              <CheckCircle2 size={18} />
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>Creating Student Account...</span>
+                </>
+              ) : (
+                <>
+                  <span>Complete Student Registration</span>
+                  <CheckCircle2 size={18} />
+                </>
+              )}
             </button>
 
             <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>

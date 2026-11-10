@@ -4,18 +4,15 @@ import {
   Search, 
   Trash2, 
   CheckCircle2, 
-  Clock, 
   MapPin, 
   Phone, 
   Mail, 
-  User as UserIcon, 
   Users, 
   Package, 
   AlertTriangle, 
   CheckCircle, 
   Tag, 
   Award,
-  FileText,
   Calendar,
   X,
   Printer,
@@ -45,8 +42,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteItem,
   onDeleteStudentAccount,
   onBackToFeed,
-  onViewItem,
-  currentUser
+  onViewItem: _onViewItem,
+  currentUser: _currentUser
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'items' | 'students' | 'handovers'>('items');
   const [filterType, setFilterType] = useState<'all' | 'found' | 'lost' | 'pending' | 'claimed'>('all');
@@ -1400,7 +1397,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <strong>REF VOUCHER:</strong> MGMCET/PROCTOR/LF-{printingItem.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}
               </div>
               <div>
-                <strong>DISCHARGE DATE:</strong> {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}
+                <strong>DISCHARGE DATE:</strong> {printingItem.handoverDetails?.handedDate || printingItem.date || 'Official Handover'}
               </div>
               <div>
                 <strong>CASE:</strong> <span style={{ color: '#059669' }}>CLOSED & DISCHARGED ✓</span>
@@ -1469,7 +1466,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div><strong>Claimant Name:</strong> {printingItem.handoverDetails?.handedToName || printingItem.reportedBy?.fullName}</div>
                   <div><strong>Student Roll No:</strong> {printingItem.handoverDetails?.handedToRoll || 'VERIFIED ROLL'}</div>
                   <div><strong>Cabin Location:</strong> {printingItem.handoverDetails?.cabinLocation || 'Gate 1 Security Cabin'}</div>
-                  <div><strong>Handover Date:</strong> {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}</div>
+                  <div><strong>Handover Date:</strong> {printingItem.handoverDetails?.handedDate || printingItem.date || 'Official Handover'}</div>
                   <div><strong>Officer Remarks:</strong> {printingItem.handoverDetails?.adminNotes || 'Identity verified via college card.'}</div>
                 </div>
               </div>
@@ -1538,7 +1535,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     VERIFIED & RELEASED
                   </div>
                   <div style={{ fontSize: '0.48rem', color: '#065f46', marginTop: '2px' }}>
-                    {printingItem.handoverDetails?.handedDate || new Date().toLocaleDateString('en-GB')}
+                    {printingItem.handoverDetails?.handedDate || printingItem.date || 'OFFICIAL'}
                   </div>
                 </div>
                 <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#065f46', marginTop: '4px' }}>

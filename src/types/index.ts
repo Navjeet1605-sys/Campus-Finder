@@ -1,4 +1,4 @@
-export type Department = 
+﻿export type Department = 
   | 'Computer Science & Engineering (CSE)'
   | 'CSE AIML'
   | 'CSE Data Science'

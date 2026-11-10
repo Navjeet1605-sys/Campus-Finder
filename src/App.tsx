@@ -11,6 +11,23 @@ import { AdminPanel } from './components/AdminPanel';
 import { Footer } from './components/Footer';
 import type { User, Item, ChatThread, AppNotification, ItemType, HandoverRecord } from './types';
 import { CheckCircle2 } from 'lucide-react';
+import {
+  dbFetchItems,
+  dbCreateItem,
+  dbUpdateItemStatus,
+  dbVerifyItem,
+  dbConfirmHandover,
+  dbDeleteItem,
+  dbFetchRegisteredStudents,
+  dbDeleteStudent,
+  dbFetchChatThreads,
+  dbCreateChatThread,
+  dbSendMessage,
+  dbSubscribeToItems,
+  dbSubscribeToMessages,
+  dbSubscribeToChatThreads
+} from './services/dbService';
+import { playNotificationChime } from './lib/sound';
 
 export const App: React.FC = () => {
   // Current user state: starts as null if not logged in.
@@ -106,6 +123,125 @@ export const App: React.FC = () => {
     }, 3500);
   };
 
+  // 1. Initial Load from Supabase + Realtime Subscription
+  useEffect(() => {
+    const loadItemsFromDb = async () => {
+      try {
+        const cloudItems = await dbFetchItems();
+        if (cloudItems && cloudItems.length > 0) {
+          setItems(cloudItems);
+        }
+      } catch (err) {
+        console.warn('Initial item fetch fallback to local storage:', err);
+      }
+    };
+
+    loadItemsFromDb();
+
+    // Subscribe to realtime item changes (inserts, updates, claims)
+    const unsubscribe = dbSubscribeToItems(async () => {
+      const refreshed = await dbFetchItems();
+      setItems(refreshed);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // 2. Load User Chat Threads + Realtime Message & Thread Listeners
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Load initial user threads
+    const loadUserChats = async () => {
+      try {
+        const userThreads = await dbFetchChatThreads(currentUser.id);
+        if (userThreads && userThreads.length > 0) {
+          setThreads(userThreads);
+        }
+      } catch (err) {
+        console.warn('Chat threads fetch fallback:', err);
+      }
+    };
+    loadUserChats();
+
+    // Realtime listener for incoming messages from other students
+    const unsubscribeMessages = dbSubscribeToMessages(({ threadId, message }) => {
+      const isFromMe = message.senderId === currentUser.id;
+
+      setThreads(prev => {
+        const threadExists = prev.some(t => t.id === threadId);
+        if (!threadExists) {
+          // A new thread was created with current user, reload from db
+          dbFetchChatThreads(currentUser.id).then(fresh => setThreads(fresh));
+          return prev;
+        }
+
+        return prev.map(t => {
+          if (t.id === threadId) {
+            // Deduplicate if already present
+            if (t.messages.some(m => m.id === message.id)) return t;
+
+            const isViewingThisThread = activeTab === 'chats' && activeChatThreadId === threadId;
+            const newUnread = isFromMe || isViewingThisThread ? 0 : (t.unreadCount || 0) + 1;
+
+            return {
+              ...t,
+              messages: [...t.messages, message],
+              lastUpdated: message.timestamp,
+              unreadCount: newUnread
+            };
+          }
+          return t;
+        });
+      });
+
+      // If the message is from another student and we are not currently viewing that chat
+      const isViewingThisThread = activeTab === 'chats' && activeChatThreadId === threadId;
+      if (!isFromMe && !isViewingThisThread) {
+        playNotificationChime();
+        showToast(`💬 ${message.senderName}: "${message.text.slice(0, 32)}${message.text.length > 32 ? '...' : ''}"`);
+
+        const newNotif: AppNotification = {
+          id: `notif_${Date.now()}`,
+          title: `Message from ${message.senderName}`,
+          message: message.text,
+          timestamp: 'Just now',
+          read: false,
+          type: 'chat'
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+      }
+    });
+
+    // Realtime listener for thread creation / updates
+    const unsubscribeThreads = dbSubscribeToChatThreads(currentUser.id, async () => {
+      const fresh = await dbFetchChatThreads(currentUser.id);
+      setThreads(fresh);
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeThreads();
+    };
+  }, [currentUser, activeTab, activeChatThreadId]);
+
+  // 3. Load Registered Students for Proctor Admin Panel
+  useEffect(() => {
+    if (activeTab === 'admin') {
+      const loadStudents = async () => {
+        try {
+          const students = await dbFetchRegisteredStudents();
+          setStudentsList(students);
+        } catch (err) {
+          console.warn('Student list fetch fallback:', err);
+        }
+      };
+      loadStudents();
+    }
+  }, [activeTab]);
+
   // Auth Handlers
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -115,11 +251,14 @@ export const App: React.FC = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveTab('feed');
+    setThreads([]);
+    setActiveChatThreadId(null);
+    localStorage.removeItem('mgmcet_chats');
     showToast('You have been logged out.');
   };
 
   // Item Handlers
-  const handleCreateItem = (newItem: Item) => {
+  const handleCreateItem = async (newItem: Item) => {
     setItems(prev => [newItem, ...prev]);
     showToast(`Your ${newItem.type === 'found' ? 'Found' : 'Lost'} item report has been published!`);
 
@@ -133,28 +272,54 @@ export const App: React.FC = () => {
       type: 'system'
     };
     setNotifications(prev => [newNotif, ...prev]);
+
+    // Persist to Supabase Cloud
+    await dbCreateItem(newItem);
   };
 
-  const handleMarkResolved = (item: Item) => {
+  const handleMarkResolved = async (item: Item) => {
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'claimed' } : i));
     if (selectedItemForDetail?.id === item.id) {
       setSelectedItemForDetail({ ...selectedItemForDetail, status: 'claimed' });
     }
     showToast(`"${item.title}" marked as successfully reunited.`);
+
+    // Persist to Supabase
+    await dbUpdateItemStatus(item.id, 'claimed');
   };
 
-  const handleDeleteItem = (itemId: string) => {
+  const handleDeleteItem = async (itemId: string) => {
+    const targetItem = items.find(i => i.id === itemId);
+    if (currentUser?.role !== 'admin' && targetItem && targetItem.reportedBy.id !== currentUser?.id) {
+      showToast('Unauthorized: You can only delete your own listings.');
+      return;
+    }
+
     setItems(prev => prev.filter(i => i.id !== itemId));
     showToast('Item listing removed.');
+
+    // Persist to Supabase
+    await dbDeleteItem(itemId);
   };
 
   // Admin Verification & Handover Certification Handlers
-  const handleVerifyItem = (itemId: string, status: 'verified' | 'pending' | 'flagged') => {
+  const handleVerifyItem = async (itemId: string, status: 'verified' | 'pending' | 'flagged') => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Unauthorized: Proctor privileges required.');
+      return;
+    }
     setItems(prev => prev.map(item => item.id === itemId ? { ...item, adminVerification: status } : item));
     showToast(status === 'verified' ? 'Item verified by Proctor.' : status === 'flagged' ? 'Item flagged for review.' : 'Verification set to pending.');
+
+    // Persist to Supabase
+    await dbVerifyItem(itemId, status);
   };
 
-  const handleConfirmHandover = (itemId: string, record: HandoverRecord) => {
+  const handleConfirmHandover = async (itemId: string, record: HandoverRecord) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Unauthorized: Proctor privileges required.');
+      return;
+    }
     setItems(prev => prev.map(item => item.id === itemId ? {
       ...item,
       status: 'claimed',
@@ -162,29 +327,26 @@ export const App: React.FC = () => {
       handoverDetails: record
     } : item));
     showToast(`Handover officially certified and recorded for student ${record.handedToName}.`);
+
+    // Persist to Supabase
+    await dbConfirmHandover(itemId, record);
   };
 
-  const handleDeleteStudent = (studentId: string) => {
+  const handleDeleteStudent = async (studentId: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Unauthorized: Proctor privileges required.');
+      return;
+    }
     const updated = studentsList.filter(s => s.id !== studentId);
     setStudentsList(updated);
-    localStorage.setItem('mgmcet_registered_students', JSON.stringify(updated));
     showToast('Student account record removed.');
+
+    // Persist to Supabase
+    await dbDeleteStudent(studentId);
   };
 
-  // Re-sync students list when switching to admin tab
-  useEffect(() => {
-    if (activeTab === 'admin') {
-      try {
-        const saved = localStorage.getItem('mgmcet_registered_students');
-        if (saved) setStudentsList(JSON.parse(saved));
-      } catch {
-        // ignore
-      }
-    }
-  }, [activeTab]);
-
   // Direct Chat Handler
-  const handleStartChatWithItem = (item: Item) => {
+  const handleStartChatWithItem = async (item: Item) => {
     if (!currentUser) return;
 
     if (item.reportedBy.id === currentUser.id) {
@@ -225,6 +387,9 @@ export const App: React.FC = () => {
 
       setThreads(prev => [newThread, ...prev]);
       setActiveChatThreadId(newThread.id);
+
+      // Persist thread to Supabase
+      await dbCreateChatThread(newThread);
     } else {
       setActiveChatThreadId(existingThread.id);
     }
@@ -232,7 +397,7 @@ export const App: React.FC = () => {
     setActiveTab('chats');
   };
 
-  const handleSendMessage = (threadId: string, text: string, isProof?: boolean) => {
+  const handleSendMessage = async (threadId: string, text: string, isProof?: boolean) => {
     if (!currentUser) return;
 
     const newMsg = {
@@ -255,11 +420,21 @@ export const App: React.FC = () => {
       }
       return t;
     }));
+
+    // Persist message to Supabase
+    await dbSendMessage(threadId, newMsg);
   };
 
   const handleMarkNotificationsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
+
+  const handleSelectThread = (threadId: string) => {
+    setActiveChatThreadId(threadId);
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, unreadCount: 0 } : t));
+  };
+
+  const unreadChatCount = threads.reduce((acc, t) => acc + (t.unreadCount || 0), 0);
 
   // FIRST REQUIREMENT:
   // When the student enters the site, ONLY Login & Register page is available at the center.
@@ -338,7 +513,7 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        unreadChatCount={0}
+        unreadChatCount={unreadChatCount}
         notifications={notifications}
         onMarkNotificationsRead={handleMarkNotificationsRead}
       />
@@ -379,7 +554,7 @@ export const App: React.FC = () => {
           <ChatMessenger
             threads={threads}
             activeThreadId={activeChatThreadId}
-            onSelectThread={(id) => setActiveChatThreadId(id)}
+            onSelectThread={handleSelectThread}
             onSendMessage={handleSendMessage}
             currentUser={currentUser}
             onOpenAuthModal={() => {}}
@@ -401,24 +576,45 @@ export const App: React.FC = () => {
             onOpenChat={handleStartChatWithItem}
             onDeleteMyItem={handleDeleteItem}
             onOpenChatThread={(threadId) => {
-              setActiveChatThreadId(threadId);
+              handleSelectThread(threadId);
               setActiveTab('chats');
             }}
           />
         )}
 
         {activeTab === 'admin' && (
-          <AdminPanel
-            items={items}
-            registeredStudents={studentsList}
-            onVerifyItem={handleVerifyItem}
-            onDeleteItem={handleDeleteItem}
-            onConfirmHandover={handleConfirmHandover}
-            onDeleteStudentAccount={handleDeleteStudent}
-            onViewItem={(item: Item) => setSelectedItemForDetail(item)}
-            onBackToFeed={() => setActiveTab('feed')}
-            currentUser={currentUser}
-          />
+          currentUser.role === 'admin' ? (
+            <AdminPanel
+              items={items}
+              registeredStudents={studentsList}
+              onVerifyItem={handleVerifyItem}
+              onDeleteItem={handleDeleteItem}
+              onConfirmHandover={handleConfirmHandover}
+              onDeleteStudentAccount={handleDeleteStudent}
+              onViewItem={(item: Item) => setSelectedItemForDetail(item)}
+              onBackToFeed={() => setActiveTab('feed')}
+              currentUser={currentUser}
+            />
+          ) : (
+            <div className="glass-panel" style={{ padding: '3.5rem 2rem', textAlign: 'center', maxWidth: '580px', margin: '3rem auto', borderRadius: 'var(--radius-lg)', background: '#ffffff', border: '1px solid #fecdd3' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+                <span style={{ fontSize: '1.8rem' }}>🔒</span>
+              </div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#e11d48', marginBottom: '0.5rem' }}>
+                Access Restricted
+              </h2>
+              <p style={{ color: '#475569', fontSize: '0.88rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+                Only verified college proctors and administrators with designated roles can access the custody management console.
+              </p>
+              <button 
+                onClick={() => setActiveTab('feed')} 
+                className="btn btn-primary"
+                style={{ padding: '0.75rem 1.6rem' }}
+              >
+                Return to Campus Feed
+              </button>
+            </div>
+          )
         )}
       </main>
 

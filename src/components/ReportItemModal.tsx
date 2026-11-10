@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import type { Item, ItemCategory, ItemType, User } from '../types';
 import { CAMPUS_LOCATIONS } from '../data/mockData';
+import { dbUploadItemPhoto } from '../services/dbService';
+import { Loader2 } from 'lucide-react';
 
 interface ReportItemModalProps {
   isOpen: boolean;
@@ -52,30 +54,38 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
   const [category, setCategory] = useState<ItemCategory>('Electronics & Gadgets');
   const [location, setLocation] = useState(CAMPUS_LOCATIONS[0]);
   const [customLocation, setCustomLocation] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('11:30 AM');
   const [description, setDescription] = useState('');
   const [secretHint, setSecretHint] = useState('');
   const [imageUrl, setImageUrl] = useState(PRESET_PHOTOS[0].url);
   const [imagePreview, setImagePreview] = useState<string>(PRESET_PHOTOS[0].url);
   const [error, setError] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setImagePreview(result);
-        setImageUrl(result);
-      };
-      reader.readAsDataURL(file);
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type.toLowerCase())) {
+        setError('Unsupported format. Please select a valid JPEG, PNG, or WebP photo.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Selected photo is larger than 10MB. Please choose a smaller image.');
+        return;
+      }
+      setError('');
+      setSelectedFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -94,6 +104,23 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
       return;
     }
 
+    setIsUploading(true);
+    let finalImageUrl = imageUrl;
+
+    if (selectedFile) {
+      try {
+        const cloudUrl = await dbUploadItemPhoto(selectedFile);
+        if (cloudUrl) {
+          finalImageUrl = cloudUrl;
+        } else {
+          // If Supabase upload returns null, fallback to safe preset instead of base64
+          finalImageUrl = PRESET_PHOTOS[0].url;
+        }
+      } catch {
+        finalImageUrl = PRESET_PHOTOS[0].url;
+      }
+    }
+
     const finalLocation = customLocation.trim() || location;
 
     const newItem: Item = {
@@ -105,13 +132,14 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
       location: finalLocation,
       date,
       time,
-      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&auto=format&fit=crop&q=80',
+      imageUrl: finalImageUrl || 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?w=800&auto=format&fit=crop&q=80',
       status: 'active',
       reportedBy: currentUser,
       secretVerificationHint: secretHint.trim() || undefined,
       createdAt: new Date().toISOString()
     };
 
+    setIsUploading(false);
     onSubmitItem(newItem);
     onClose();
   };
@@ -326,6 +354,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
                         key={p.label}
                         type="button"
                         onClick={() => {
+                          setSelectedFile(null);
                           setImagePreview(p.url);
                           setImageUrl(p.url);
                         }}
@@ -357,6 +386,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
             <input
               type="text"
               placeholder="e.g. Casio fx-991EX Calculator / Blue College Lanyard / HP Charger"
+              maxLength={120}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               style={{
@@ -433,6 +463,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
             <input
               type="text"
               placeholder="e.g. 3rd bench from entrance, near water cooler, room 302"
+              maxLength={120}
               value={customLocation}
               onChange={(e) => setCustomLocation(e.target.value)}
               style={{
@@ -502,6 +533,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
             <textarea
               rows={3}
               placeholder="Describe color, brand, condition, and where you placed it for safekeeping..."
+              maxLength={2000}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               style={{
@@ -535,6 +567,7 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
             <input
               type="text"
               placeholder="e.g. Ask them to verify wallpaper, scratch location, or ID number"
+              maxLength={200}
               value={secretHint}
               onChange={(e) => setSecretHint(e.target.value)}
               style={{
@@ -553,16 +586,28 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
           {/* Submit */}
           <button
             type="submit"
+            disabled={isUploading}
             className="btn btn-primary"
             style={{
               padding: '0.9rem',
               fontSize: '0.96rem',
               fontWeight: 700,
-              marginTop: '0.4rem'
+              marginTop: '0.4rem',
+              opacity: isUploading ? 0.7 : 1,
+              cursor: isUploading ? 'not-allowed' : 'pointer'
             }}
           >
-            <Sparkles size={18} />
-            <span>Publish {itemType === 'found' ? 'Found' : 'Lost'} Item Report</span>
+            {isUploading ? (
+              <>
+                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Uploading Photo & Publishing...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={18} />
+                <span>Publish {itemType === 'found' ? 'Found' : 'Lost'} Item Report</span>
+              </>
+            )}
           </button>
         </form>
       </div>

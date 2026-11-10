@@ -529,6 +529,7 @@ export const ChatMessenger: React.FC<ChatMessengerProps> = ({
               <input
                 type="text"
                 placeholder={`Message ${activeThread.founderId === currentUser.id ? activeThread.claimantName : activeThread.founderName}...`}
+                maxLength={1000}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 style={{
