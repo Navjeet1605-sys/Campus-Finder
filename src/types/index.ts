@@ -98,3 +98,10 @@ export interface AppNotification {
   itemId?: string;
   type: 'chat' | 'claim' | 'system';
 }
+
+export interface ToastItem {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title?: string;
+  message: string;
+}

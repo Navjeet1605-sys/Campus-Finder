@@ -20,6 +20,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import type { Item, User, HandoverRecord } from '../types';
+import { toast } from './Toast';
 
 interface AdminPanelProps {
   items: Item[];
@@ -113,11 +114,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     e.preventDefault();
     if (!selectedItemForHandover) return;
     if (!handoverRecipientName.trim() || !handoverRecipientRoll.trim()) {
-      alert('Please enter both the Recipient Student Name and Roll Number.');
+      toast.error('Please enter both the Recipient Student Name and Roll Number.');
       return;
     }
     if (!/^\d+$/.test(handoverRecipientRoll.trim())) {
-      alert('Recipient College Roll Number must contain numeric digits only (no alphabets or symbols allowed).');
+      toast.error('Recipient College Roll Number must contain numeric digits only (no alphabets or symbols allowed).');
       return;
     }
 
@@ -130,6 +131,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     };
 
     onConfirmHandover(selectedItemForHandover.id, record);
+    toast.success(`Official handover registered for ${record.handedToName}!`);
 
     // Prepare ready item for instant printing/audit slip
     const confirmedItem: Item = {
@@ -145,7 +147,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Export full campus audit log as CSV for institutional / proctorial review
   const handleExportAuditCSV = () => {
     if (items.length === 0) {
-      alert('No campus items found to export.');
+      toast.warning('No campus items found to export.');
       return;
     }
 

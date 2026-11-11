@@ -9,7 +9,9 @@ import {
 } from 'lucide-react';
 import type { Item, ItemCategory, User } from '../types';
 import { ItemCard } from './ItemCard';
+import { SkeletonGrid } from './SkeletonCard';
 import { CAMPUS_LOCATIONS } from '../data/mockData';
+import { getCategoryMeta } from '../lib/formatters';
 
 interface ItemFeedProps {
   items: Item[];
@@ -18,6 +20,7 @@ interface ItemFeedProps {
   onOpenChat: (item: Item) => void;
   onOpenReportModal: () => void;
   searchQuery: string;
+  isLoading?: boolean;
 }
 
 const CATEGORIES: ('All' | ItemCategory)[] = [
@@ -36,7 +39,8 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
   onViewDetails,
   onOpenChat,
   onOpenReportModal,
-  searchQuery
+  searchQuery,
+  isLoading = false
 }) => {
   const [selectedType, setSelectedType] = useState<'all' | 'found' | 'lost' | 'claimed'>('all');
   const [selectedCategory, setSelectedCategory] = useState<'All' | ItemCategory>('All');
@@ -82,7 +86,7 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Filters and Controls Bar (Light Green & Crisp White) */}
+      {/* Filters and Controls Bar */}
       <div 
         className="glass-panel"
         style={{
@@ -104,84 +108,43 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
           flexWrap: 'wrap',
           gap: '1rem'
         }}>
-          {/* Status Tabs */}
-          <div style={{
-            display: 'flex',
-            background: '#f8fafc',
-            padding: '0.3rem',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid #e2e8f0',
-            gap: '0.3rem',
-            overflowX: 'auto',
-            maxWidth: '100%',
-            WebkitOverflowScrolling: 'touch'
-          }}>
+          {/* Apple/Linear Segmented Track */}
+          <div className="segmented-track" style={{ overflowX: 'auto', maxWidth: '100%' }}>
             <button
               onClick={() => setSelectedType('all')}
-              style={{
-                padding: '0.45rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: selectedType === 'all' ? 'var(--primary)' : 'transparent',
-                color: selectedType === 'all' ? '#ffffff' : '#475569',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all var(--transition-fast)'
-              }}
+              className={`segmented-pill ${selectedType === 'all' ? 'active' : ''}`}
             >
-              All Items ({items.length})
+              <span>All Items</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.8, background: selectedType === 'all' ? '#f1f5f9' : '#e2e8f0', padding: '1px 6px', borderRadius: '9999px' }}>
+                {items.length}
+              </span>
             </button>
 
             <button
               onClick={() => setSelectedType('found')}
-              style={{
-                padding: '0.45rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: selectedType === 'found' ? 'var(--found-color)' : 'transparent',
-                color: selectedType === 'found' ? '#ffffff' : '#065f46',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all var(--transition-fast)'
-              }}
+              className={`segmented-pill ${selectedType === 'found' ? 'active' : ''}`}
             >
-              🟢 Found ({items.filter(i => i.type === 'found' && i.status !== 'claimed').length})
+              <span>🟢 Found</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.8, background: selectedType === 'found' ? '#ecfdf5' : '#e2e8f0', padding: '1px 6px', borderRadius: '9999px', color: selectedType === 'found' ? '#059669' : 'inherit' }}>
+                {items.filter(i => i.type === 'found' && i.status !== 'claimed').length}
+              </span>
             </button>
 
             <button
               onClick={() => setSelectedType('lost')}
-              style={{
-                padding: '0.45rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: selectedType === 'lost' ? 'var(--lost-color)' : 'transparent',
-                color: selectedType === 'lost' ? '#ffffff' : '#9f1239',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all var(--transition-fast)'
-              }}
+              className={`segmented-pill ${selectedType === 'lost' ? 'active' : ''}`}
             >
-              🔴 Missing ({items.filter(i => i.type === 'lost' && i.status !== 'claimed').length})
+              <span>🔴 Missing</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.8, background: selectedType === 'lost' ? '#fff1f2' : '#e2e8f0', padding: '1px 6px', borderRadius: '9999px', color: selectedType === 'lost' ? '#e11d48' : 'inherit' }}>
+                {items.filter(i => i.type === 'lost' && i.status !== 'claimed').length}
+              </span>
             </button>
 
             <button
               onClick={() => setSelectedType('claimed')}
-              style={{
-                padding: '0.45rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                background: selectedType === 'claimed' ? 'var(--claimed-color)' : 'transparent',
-                color: selectedType === 'claimed' ? '#ffffff' : '#5b21b6',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all var(--transition-fast)'
-              }}
+              className={`segmented-pill ${selectedType === 'claimed' ? 'active' : ''}`}
             >
-              ✅ Reunited
+              <span>✅ Reunited</span>
             </button>
           </div>
 
@@ -237,7 +200,7 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="btn btn-outline"
+                className="btn btn-outline btn-tactile"
                 style={{ fontSize: '0.76rem', padding: '0.45rem 0.7rem', borderColor: '#cbd5e1', background: '#f8fafc' }}
               >
                 <X size={14} />
@@ -247,42 +210,41 @@ export const ItemFeed: React.FC<ItemFeedProps> = ({
           </div>
         </div>
 
-        {/* Category Pills Slider */}
+        {/* Category Filter Chips with Emojis */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
           overflowX: 'auto',
-          paddingBottom: '0.2rem'
+          paddingBottom: '0.3rem',
+          WebkitOverflowScrolling: 'touch'
         }}>
           <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', fontWeight: 600 }}>
             <Tag size={13} color="var(--primary)" /> Category:
           </span>
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              style={{
-                padding: '0.35rem 0.8rem',
-                borderRadius: 'var(--radius-full)',
-                border: selectedCategory === cat ? '1px solid var(--primary)' : '1px solid #e2e8f0',
-                background: selectedCategory === cat ? '#ecfdf5' : '#ffffff',
-                color: selectedCategory === cat ? 'var(--primary-dark)' : '#475569',
-                fontSize: '0.78rem',
-                fontWeight: selectedCategory === cat ? 700 : 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all var(--transition-fast)'
-              }}
-            >
-              {cat}
-            </button>
-          ))}
+          {CATEGORIES.map((cat) => {
+            const isAll = cat === 'All';
+            const meta = !isAll ? getCategoryMeta(cat) : null;
+            const isActive = selectedCategory === cat;
+
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`filter-chip ${isActive ? 'active' : ''}`}
+              >
+                <span>{isAll ? '✨' : meta?.emoji}</span>
+                <span>{isAll ? 'All Categories' : meta?.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Item Cards Grid */}
-      {filteredItems.length > 0 ? (
+      {/* Item Cards Grid or Skeleton Loader */}
+      {isLoading ? (
+        <SkeletonGrid count={6} />
+      ) : filteredItems.length > 0 ? (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',

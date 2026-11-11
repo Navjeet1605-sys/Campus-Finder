@@ -159,13 +159,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             }}>
               <Search size={17} style={{ position: 'absolute', left: '1rem', color: '#94a3b8' }} />
               <input
+                id="campus-search-input"
                 type="text"
                 placeholder="Search items by name, lab, canteen, library..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.65rem 1rem 0.65rem 2.6rem',
+                  padding: '0.65rem 2.4rem 0.65rem 2.6rem',
                   borderRadius: 'var(--radius-full)',
                   background: '#ffffff',
                   border: '1px solid #cbd5e1',
@@ -184,6 +185,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                   e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.02)';
                 }}
               />
+              {!searchQuery && (
+                <span style={{
+                  position: 'absolute',
+                  right: '0.85rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#94a3b8',
+                  background: '#f1f5f9',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid #e2e8f0',
+                  pointerEvents: 'none'
+                }}>
+                  /
+                </span>
+              )}
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
@@ -519,6 +536,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div style={{ position: 'relative', width: '100%' }}>
               <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
               <input
+                id="campus-search-input-mobile"
                 type="text"
                 placeholder="Search items, canteen, library..."
                 value={searchQuery}

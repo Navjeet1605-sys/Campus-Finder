@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { Item, User } from '../types';
+import { toast } from './Toast';
 
 interface ItemDetailModalProps {
   item: Item | null;
@@ -313,9 +314,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             <button
               onClick={() => {
                 navigator.clipboard?.writeText(window.location.href);
-                alert('Item link copied to clipboard!');
+                toast.success('Item link copied to clipboard!');
               }}
-              className="btn btn-outline"
+              className="btn btn-outline btn-tactile"
               style={{ padding: '0.85rem 1.25rem', background: '#f8fafc', borderColor: '#cbd5e1' }}
             >
               <Share2 size={18} />

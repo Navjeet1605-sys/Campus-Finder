@@ -1,13 +1,13 @@
 ﻿import React from 'react';
 import { 
   MapPin, 
-  Calendar, 
+  Clock, 
   MessageSquare, 
   CheckCircle, 
-  Eye, 
-  Tag 
+  Eye
 } from 'lucide-react';
 import type { Item, User } from '../types';
+import { timeAgo, getCategoryMeta } from '../lib/formatters';
 
 interface ItemCardProps {
   item: Item;
@@ -106,14 +106,20 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             </span>
           )}
 
-          <span className="badge" style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            color: '#334155',
-            border: '1px solid #cbd5e1'
-          }}>
-            <Tag size={11} />
-            {item.category.split('&')[0]}
-          </span>
+          {(() => {
+            const meta = getCategoryMeta(item.category);
+            return (
+              <span className="badge" style={{
+                background: meta.bg,
+                color: meta.color,
+                border: `1px solid ${meta.border}`,
+                fontWeight: 600
+              }}>
+                <span>{meta.emoji}</span>
+                <span>{meta.label}</span>
+              </span>
+            );
+          })()}
 
           {item.adminVerification === 'verified' && (
             <span className="badge" style={{
@@ -128,7 +134,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           )}
         </div>
 
-        {/* Date on bottom right of image */}
+        {/* Relative time on bottom right of image */}
         <div style={{
           position: 'absolute',
           bottom: '0.6rem',
@@ -137,12 +143,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           alignItems: 'center',
           gap: '0.3rem',
           fontSize: '0.72rem',
-          color: '#f8fafc',
+          color: '#ffffff',
           fontWeight: 600,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          padding: '2px 8px',
+          borderRadius: '9999px',
           zIndex: 2
         }}>
-          <Calendar size={12} />
-          <span>{item.date}</span>
+          <Clock size={11} />
+          <span>{timeAgo(item.createdAt || item.date)}</span>
         </div>
       </div>
 
@@ -242,7 +252,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: isOwner ? '1fr' : '1fr 1.2fr', gap: '0.5rem' }}>
           <button
             onClick={() => onViewDetails(item)}
-            className="btn btn-outline"
+            className="btn btn-outline btn-tactile"
             style={{ fontSize: '0.8rem', padding: '0.5rem 0.6rem', background: '#f8fafc', borderColor: '#cbd5e1' }}
           >
             <Eye size={15} />
@@ -252,7 +262,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {!isOwner && (
             <button
               onClick={() => onOpenChat(item)}
-              className="btn btn-primary"
+              className="btn btn-primary btn-tactile"
               style={{
                 fontSize: '0.8rem',
                 padding: '0.5rem 0.6rem'

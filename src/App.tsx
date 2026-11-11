@@ -9,8 +9,9 @@ import { ChatMessenger } from './components/ChatMessenger';
 import { MyActivity } from './components/MyActivity';
 import { AdminPanel } from './components/AdminPanel';
 import { Footer } from './components/Footer';
+import { BottomNav } from './components/BottomNav';
+import { ToastProvider, toast } from './components/Toast';
 import type { User, Item, ChatThread, AppNotification, ItemType, HandoverRecord } from './types';
-import { CheckCircle2 } from 'lucide-react';
 import {
   dbFetchItems,
   dbCreateItem,
@@ -92,8 +93,8 @@ export const App: React.FC = () => {
   const [reportModalType, setReportModalType] = useState<ItemType>('found');
   const [selectedItemForDetail, setSelectedItemForDetail] = useState<Item | null>(null);
 
-  // Toast Notification
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Toast Notification & Loading state
+  const [itemsLoading, setItemsLoading] = useState(true);
 
   // Sync to local storage
   useEffect(() => {
@@ -117,11 +118,40 @@ export const App: React.FC = () => {
   }, [notifications]);
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
+    toast.success(msg);
   };
+
+  // Keyboard Shortcuts: '/' to search, 'Esc' to dismiss modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        (activeEl as HTMLElement).isContentEditable
+      );
+
+      if (e.key === '/' && !isInput) {
+        e.preventDefault();
+        const searchInput = document.getElementById('campus-search-input');
+        if (searchInput) {
+          searchInput.focus();
+        } else {
+          const mobileInput = document.getElementById('campus-search-input-mobile');
+          mobileInput?.focus();
+        }
+      } else if (e.key === 'Escape') {
+        if (selectedItemForDetail) {
+          setSelectedItemForDetail(null);
+        } else if (reportModalOpen) {
+          setReportModalOpen(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedItemForDetail, reportModalOpen]);
 
   // 1. Initial Load from Supabase + Realtime Subscription
   useEffect(() => {
@@ -133,6 +163,8 @@ export const App: React.FC = () => {
         }
       } catch (err) {
         console.warn('Initial item fetch fallback to local storage:', err);
+      } finally {
+        setItemsLoading(false);
       }
     };
 
@@ -441,114 +473,73 @@ export const App: React.FC = () => {
   // There is NO extra page, navbar, feed, or footer open!
   if (!currentUser) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {toastMessage && (
-          <div 
-            className="animate-fade-in"
-            style={{
-              position: 'fixed',
-              top: '24px',
-              background: '#ffffff',
-              border: '2px solid var(--primary)',
-              boxShadow: '0 10px 30px rgba(16, 185, 129, 0.25)',
-              color: '#0f172a',
-              padding: '0.8rem 1.25rem',
-              borderRadius: 'var(--radius-md)',
-              zIndex: 9999,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.65rem',
-              fontSize: '0.88rem',
-              fontWeight: 600
-            }}
-          >
-            <CheckCircle2 size={19} color="var(--primary)" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
-        <AuthPage onLoginSuccess={handleLoginSuccess} />
-      </div>
+      <ToastProvider>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AuthPage onLoginSuccess={handleLoginSuccess} />
+        </div>
+      </ToastProvider>
     );
   }
 
   // Once authenticated, render the full CampusFinder portal:
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div 
-          className="animate-fade-in"
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            background: '#ffffff',
-            border: '2px solid var(--primary)',
-            boxShadow: '0 12px 35px rgba(16, 185, 129, 0.25)',
-            color: '#0f172a',
-            padding: '0.9rem 1.35rem',
-            borderRadius: 'var(--radius-md)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            fontSize: '0.88rem',
-            fontWeight: 600
+    <ToastProvider>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Main Navigation */}
+        <Navbar
+          currentUser={currentUser}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenReportModal={(type) => {
+            setReportModalType(type || 'found');
+            setReportModalOpen(true);
           }}
-        >
-          <CheckCircle2 size={20} color="var(--primary)" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+          onLogout={handleLogout}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          unreadChatCount={unreadChatCount}
+          notifications={notifications}
+          onMarkNotificationsRead={handleMarkNotificationsRead}
+        />
 
-      {/* Main Navigation */}
-      <Navbar
-        currentUser={currentUser}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenReportModal={(type) => {
-          setReportModalType(type || 'found');
-          setReportModalOpen(true);
-        }}
-        onLogout={handleLogout}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        unreadChatCount={unreadChatCount}
-        notifications={notifications}
-        onMarkNotificationsRead={handleMarkNotificationsRead}
-      />
-
-      {/* Main Body */}
-      <main style={{ flex: 1, maxWidth: '1280px', margin: '0 auto', width: '100%', padding: '1.5rem 1.25rem' }}>
-        {activeTab === 'feed' && (
-          <>
-            <HeroBanner
-              items={items}
-              onOpenReportModal={(type) => {
-                setReportModalType(type);
-                setReportModalOpen(true);
-              }}
-              onExploreFeed={() => {
-                const el = document.getElementById('campus-feed-section');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            />
-
-            <div id="campus-feed-section">
-              <ItemFeed
+        {/* Main Body */}
+        <main className="campus-main-content" style={{ 
+          flex: 1, 
+          maxWidth: '1280px', 
+          margin: '0 auto', 
+          width: '100%', 
+          padding: '1.5rem 1.25rem'
+        }}>
+          {activeTab === 'feed' && (
+            <>
+              <HeroBanner
                 items={items}
-                currentUser={currentUser}
-                onViewDetails={(item) => setSelectedItemForDetail(item)}
-                onOpenChat={handleStartChatWithItem}
-                onOpenReportModal={() => {
-                  setReportModalType('found');
+                onOpenReportModal={(type) => {
+                  setReportModalType(type);
                   setReportModalOpen(true);
                 }}
-                searchQuery={searchQuery}
+                onExploreFeed={() => {
+                  const el = document.getElementById('campus-feed-section');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
               />
-            </div>
-          </>
-        )}
+
+              <div id="campus-feed-section">
+                <ItemFeed
+                  items={items}
+                  currentUser={currentUser}
+                  onViewDetails={(item) => setSelectedItemForDetail(item)}
+                  onOpenChat={handleStartChatWithItem}
+                  onOpenReportModal={() => {
+                    setReportModalType('found');
+                    setReportModalOpen(true);
+                  }}
+                  searchQuery={searchQuery}
+                  isLoading={itemsLoading}
+                />
+              </div>
+            </>
+          )}
 
         {activeTab === 'chats' && (
           <ChatMessenger
@@ -644,7 +635,29 @@ export const App: React.FC = () => {
         onOpenChat={handleStartChatWithItem}
         onMarkResolved={handleMarkResolved}
       />
+
+      {/* Mobile-First Bottom Navigation Bar */}
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenReportModal={(type) => {
+          setReportModalType(type);
+          setReportModalOpen(true);
+        }}
+        unreadChatCount={unreadChatCount}
+        isAdmin={currentUser.role === 'admin'}
+        onSearchClick={() => {
+          const mobileInput = document.getElementById('campus-search-input-mobile');
+          if (mobileInput) {
+            mobileInput.focus();
+          } else {
+            const deskInput = document.getElementById('campus-search-input');
+            deskInput?.focus();
+          }
+        }}
+      />
     </div>
+  </ToastProvider>
   );
 };
 
