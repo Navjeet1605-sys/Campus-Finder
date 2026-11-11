@@ -8,6 +8,7 @@ A production-grade, secure web application built with **React 19, TypeScript, Vi
 ## Key Highlights
 
 - **College Domain Restricted Authentication**: Only official `@coet.in` institutional email addresses are permitted to register and access the portal.
+- **Strict Input Validation**: University/College Roll Numbers and Mobile Numbers strictly accept **numeric digits only** (no alphabets or special characters allowed, with instant keystroke filtering).
 - **Client-Side Cryptographic Security**: Passwords are secure against plaintext exposure using PBKDF2 with SHA-256 (100,000 iterations) and 128-bit unique salt via the native Web Crypto API.
 - **Brute-Force Protection**: Client-side rate-limiting enforces a 30-second cooldown after 5 failed login attempts.
 - **Real-Time WebSocket Chat**: Peer-to-peer inquiry system with real-time sync across devices and Web Audio notification pings.

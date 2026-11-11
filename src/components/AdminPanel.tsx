@@ -116,6 +116,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       alert('Please enter both the Recipient Student Name and Roll Number.');
       return;
     }
+    if (!/^\d+$/.test(handoverRecipientRoll.trim())) {
+      alert('Recipient College Roll Number must contain numeric digits only (no alphabets or symbols allowed).');
+      return;
+    }
 
     const record: HandoverRecord = {
       handedToName: handoverRecipientName.trim(),
@@ -1149,10 +1153,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   placeholder="e.g. 210901010045"
                   value={handoverRecipientRoll}
-                  onChange={(e) => setHandoverRecipientRoll(e.target.value)}
+                  onChange={(e) => setHandoverRecipientRoll(e.target.value.replace(/\D/g, ''))}
                   style={{
                     width: '100%',
                     padding: '0.65rem 0.85rem',

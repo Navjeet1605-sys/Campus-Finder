@@ -112,6 +112,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setRegError('College Roll Number is required.');
       return;
     }
+    if (!/^\d+$/.test(regRollNumber.trim())) {
+      setRegError('College Roll Number must contain numeric digits only (no alphabets or symbols allowed).');
+      return;
+    }
     const email = regEmail.trim().toLowerCase();
     if (!email) {
       setRegError('Official college email is required.');
@@ -483,9 +487,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </label>
               <input
                 type="text"
-                placeholder="Roll Number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Roll Number (Digits only)"
                 value={regRollNumber}
-                onChange={(e) => setRegRollNumber(e.target.value)}
+                onChange={(e) => setRegRollNumber(e.target.value.replace(/\D/g, ''))}
                 style={{
                   width: '100%',
                   padding: '0.65rem 0.85rem',

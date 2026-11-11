@@ -137,6 +137,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
       setRegError('College Roll Number is required.');
       return;
     }
+    if (!/^\d+$/.test(roll)) {
+      setRegError('College Roll Number must contain numeric digits only (no alphabets or symbols allowed).');
+      return;
+    }
     if (!email) {
       setRegError('Official college email is required.');
       return;
@@ -639,17 +643,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
 
             {/* College Roll Number */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.3rem' }}>
-                University / College Roll Number
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                  University / College Roll Number
+                </label>
+                <span style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 700, background: '#f0f9ff', padding: '0.1rem 0.4rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+                  Numbers only
+                </span>
+              </div>
               <div style={{ position: 'relative' }}>
                 <Hash size={17} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder="e.g. 2300970100054"
                   maxLength={30}
                   value={regRollNumber}
-                  onChange={(e) => setRegRollNumber(e.target.value)}
+                  onChange={(e) => setRegRollNumber(e.target.value.replace(/\D/g, ''))}
                   style={{
                     width: '100%',
                     padding: '0.65rem 0.85rem 0.65rem 2.5rem',
