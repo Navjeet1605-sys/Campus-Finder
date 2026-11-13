@@ -112,3 +112,4 @@ export const reportItemLimiter = new SlidingWindowRateLimiter('item_report', 3, 
 
 // 3. Quick Action Limiter: Max 10 interactions in 15 seconds
 export const actionLimiter = new SlidingWindowRateLimiter('quick_action', 10, 15);
+

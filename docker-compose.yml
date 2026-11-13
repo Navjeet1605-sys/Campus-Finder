@@ -30,3 +30,4 @@ services:
           memory: 128M
     security_opt:
       - no-new-privileges:true
+

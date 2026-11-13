@@ -52,3 +52,4 @@ export function detectSpamPattern(content: string): { isSpam: boolean; reason?: 
 
   return { isSpam: false };
 }
+
