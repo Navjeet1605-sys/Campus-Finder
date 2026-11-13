@@ -63,3 +63,4 @@ export function getCategoryMeta(category: ItemCategory): CategoryMeta {
       return { emoji: '📦', label: 'Other', bg: '#f8fafc', color: '#475569', border: '#e2e8f0' };
   }
 }
+

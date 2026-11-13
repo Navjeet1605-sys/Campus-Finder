@@ -10,6 +10,8 @@ import type { Item, ItemCategory, ItemType, User } from '../types';
 import { CAMPUS_LOCATIONS } from '../data/mockData';
 import { dbUploadItemPhoto } from '../services/dbService';
 import { Loader2 } from 'lucide-react';
+import { reportItemLimiter } from '../lib/rateLimiter';
+import { detectSpamPattern, sanitizeText } from '../lib/sanitizer';
 
 interface ReportItemModalProps {
   isOpen: boolean;
@@ -94,13 +96,30 @@ export const ReportItemModal: React.FC<ReportItemModalProps> = ({
       return;
     }
 
-    if (!title.trim()) {
+    // Rate Limiting Check: Max 3 items per 60s
+    const rateCheck = reportItemLimiter.consume();
+    if (!rateCheck.allowed) {
+      setError(`Rate limit exceeded: You can submit another item in ${rateCheck.retryAfterSeconds} seconds.`);
+      return;
+    }
+
+    const cleanTitle = sanitizeText(title.trim(), 120);
+    const cleanDesc = sanitizeText(description.trim(), 1000);
+
+    if (!cleanTitle) {
       setError('Please provide a title for the item.');
       return;
     }
 
-    if (!description.trim()) {
+    if (!cleanDesc) {
       setError('Please provide a short description.');
+      return;
+    }
+
+    // Spam / abuse check
+    const spamCheck = detectSpamPattern(`${cleanTitle} ${cleanDesc}`);
+    if (spamCheck.isSpam) {
+      setError(spamCheck.reason || 'Report contains suspicious or forbidden content.');
       return;
     }
 

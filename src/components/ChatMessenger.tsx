@@ -8,6 +8,9 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import type { ChatThread, User, Item } from '../types';
+import { chatMessageLimiter } from '../lib/rateLimiter';
+import { detectSpamPattern, sanitizeText } from '../lib/sanitizer';
+import { toast } from '../lib/toast';
 
 interface ChatMessengerProps {
   threads: ChatThread[];
@@ -108,13 +111,34 @@ export const ChatMessenger: React.FC<ChatMessengerProps> = ({
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !activeThread) return;
-    onSendMessage(activeThread.id, inputText.trim());
+    const cleanText = sanitizeText(inputText.trim(), 500);
+    if (!cleanText || !activeThread) return;
+
+    // Rate limiting check: Max 5 messages in 10s
+    const rateCheck = chatMessageLimiter.consume();
+    if (!rateCheck.allowed) {
+      toast.warning(`Please slow down. You can send another message in ${rateCheck.retryAfterSeconds}s.`);
+      return;
+    }
+
+    // Spam and abusive pattern check
+    const spamCheck = detectSpamPattern(cleanText);
+    if (spamCheck.isSpam) {
+      toast.error(spamCheck.reason || 'Message was blocked due to spam policy.');
+      return;
+    }
+
+    onSendMessage(activeThread.id, cleanText);
     setInputText('');
   };
 
   const handleQuickPromptClick = (prompt: string) => {
     if (!activeThread) return;
+    const rateCheck = chatMessageLimiter.consume();
+    if (!rateCheck.allowed) {
+      toast.warning(`Please slow down. You can send another message in ${rateCheck.retryAfterSeconds}s.`);
+      return;
+    }
     onSendMessage(activeThread.id, prompt);
   };
 
